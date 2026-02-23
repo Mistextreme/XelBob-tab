@@ -7,10 +7,14 @@ local ESX = nil
 
 -- ----------------------------------------------------------
 --  ESX Initialization
---  FIX #5: Wrapping the 'new' ESX init in a thread with a
---  wait-loop prevents a nil crash if es_extended has not
---  finished loading when this resource starts.
---  RegisterUsableItem is deferred until ESX is confirmed ready.
+--  Everything that calls ESX (RegisterUsableItem AND
+--  RegisterServerCallback) is deferred inside this thread
+--  so ESX is guaranteed non-nil before any of it runs.
+--
+--  FIX (pass 1): RegisterUsableItem moved inside thread.
+--  FIX (pass 2): RegisterServerCallback was still outside
+--                the thread → "attempt to index nil (ESX)"
+--                crash on resource start. Moved inside.
 -- ----------------------------------------------------------
 
 Citizen.CreateThread(function()
@@ -31,45 +35,42 @@ Citizen.CreateThread(function()
         end
     end
 
-    -- ----------------------------------------------------------
+    -- --------------------------------------------------------
     --  Usable Item Registration
-    --  Moved inside the thread so ESX is guaranteed non-nil.
     --  When a player uses the item from inventory the client
     --  event fires to open / close the tablet UI.
-    -- ----------------------------------------------------------
-
+    -- --------------------------------------------------------
     if Config.Item then
         ESX.RegisterUsableItem(Config.Item, function(source)
             TriggerClientEvent('xelbob-tab:client:useItem', source)
         end)
     end
+
+    -- --------------------------------------------------------
+    --  Job validation callback
+    --  Returns the player's current ESX job name to the client,
+    --  which can then forward it to the NUI to filter jobSites.
+    -- --------------------------------------------------------
+    ESX.RegisterServerCallback('xelbob-tab:getJob', function(source, cb)
+        local xPlayer = ESX.GetPlayerFromId(source)
+
+        if xPlayer then
+            cb(xPlayer.getJob().name)
+        else
+            cb('unemployed')
+        end
+    end)
 end)
 
 -- ----------------------------------------------------------
 --  NUI close callback relay (optional server-side hook)
 --  Fired by the client after the player closes the tablet.
 --  Reserved for future server-side logic (logging, durability…)
+--  Note: this net event does not require ESX so it is safe
+--  to register at module level, outside the init thread.
 -- ----------------------------------------------------------
 
 RegisterNetEvent('xelbob-tab:server:close')
 AddEventHandler('xelbob-tab:server:close', function()
     -- Reserved for future server-side logic
-end)
-
--- ----------------------------------------------------------
---  Job validation callback
---  Returns the player's current ESX job name to the client,
---  which can then forward it to the NUI to filter jobSites.
--- ----------------------------------------------------------
-
-ESX.RegisterServerCallback('xelbob-tab:getJob', function(source, cb)
-    -- ESX may not be ready yet if called extremely early;
-    -- guard defensively before using it.
-    local xPlayer = ESX and ESX.GetPlayerFromId(source)
-
-    if xPlayer then
-        cb(xPlayer.getJob().name)
-    else
-        cb('unemployed')
-    end
 end)
