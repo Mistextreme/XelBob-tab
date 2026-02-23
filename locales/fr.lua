@@ -1,0 +1,17 @@
+Locales['fr'] = {
+	['CLOUDS'] 						= 'Nuageux',
+	['RAIN'] 						= 'Pluie',
+	['CLEAR'] 						= 'Dégagé',
+	['OVERCAST'] 					= 'Couvert',
+	['EXTRASUNNY'] 					= 'Très ensoleillé',
+	['CLEARING'] 					= 'Eclaircies',
+	['NEUTRAL'] 					= 'Neutre',
+	['THUNDER'] 					= 'Orage',
+	['SMOG']						= 'Brouillard',
+	['FOGGY']						= 'Brumeux',
+	['SNOWLIGHT']					= 'Neige légère',
+	['SNOW']						= 'Neige',
+	['BLIZZARD']					= 'Tempête de neige',
+	['XMAS']						= 'Noël',
+	['HALLOWEEN']					= 'Halloween',
+}
