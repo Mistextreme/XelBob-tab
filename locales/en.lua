@@ -1,0 +1,17 @@
+Locales['en'] = {
+	['CLOUDS'] 						= 'clouds',
+	['RAIN'] 						= 'rain',
+	['CLEAR'] 						= 'clear',
+	['OVERCAST'] 					= 'overcast',
+	['EXTRASUNNY'] 					= 'extrasunny',
+	['CLEARING'] 					= 'clearing',
+	['NEUTRAL'] 					= 'Neutral',
+	['THUNDER'] 					= 'Thunder',
+	['SMOG']						= 'Smog',
+	['FOGGY']						= 'Foggy',
+	['SNOWLIGHT']					= 'Snowlight',
+	['SNOW']						= 'Snow',
+	['BLIZZARD']					= 'Blizzard',
+	['XMAS']						= 'XMAS',
+	['HALLOWEEN']					= 'Halloween',
+}
