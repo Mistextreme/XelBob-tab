@@ -8,16 +8,18 @@ description 'Game tablet'
 
 ui_page 'nui/index.html'
 
-shared_scripts{
+shared_scripts {
     'config.lua',
     'locales.lua',
     'locales/*.lua'
 }
 
 client_scripts {
-    'client.lua',
-    'nui/assets/config.js',
-    'nui/assets/index.js'
+    -- FIX (pass 2): Removed 'nui/assets/config.js' and 'nui/assets/index.js'.
+    -- FiveM client_scripts only executes Lua. Having .js files here causes a
+    -- script load error on resource start. These files are already correctly
+    -- served to the NUI browser via files{} and loaded by nui/index.html.
+    'client.lua'
 }
 
 server_scripts {
@@ -42,5 +44,4 @@ escrow_ignore {
     'nui/index.html'
 }
 
--- FIX #6: Removed duplicate 'dependency /assetpacks' entry
 dependency '/assetpacks'
