@@ -32,8 +32,8 @@ local tabletProp   = nil
 
 -- ----------------------------------------------------------
 --  Weather hash -> name reverse lookup table
---  FIX #4: GetPrevWeatherTypeHashName() returns a joaat hash
---  (number), NOT a string — a reverse-lookup table is required.
+--  GetPrevWeatherTypeHashName() returns a joaat hash (number),
+--  NOT a string — a reverse-lookup table is required.
 -- ----------------------------------------------------------
 local weatherHashMap = {}
 local weatherNames = {
@@ -58,8 +58,10 @@ local function deleteProp()
 end
 
 --- Attach the tablet prop to the player's hand bone.
---- FIX #1: CreateModelOnBone does not exist in FiveM/GTA5.
----         Correct approach: CreateObject + AttachEntityToEntity.
+--- CreateModelOnBone does not exist in FiveM/GTA5.
+--- Correct approach: CreateObject + AttachEntityToEntity.
+--- NOTE: Must be called from inside a Citizen.CreateThread
+---       because it contains a Citizen.Wait() while-loop.
 local function createProp(ped)
     local model = GetHashKey(Config.Prop)
     RequestModel(model)
@@ -85,7 +87,6 @@ local function buildWeatherPayload()
     local weatherKey = 'CLEAR'
 
     if Config.easytime then
-        -- cd_easytime exposes the current weather type as a string
         local ok, result = pcall(function()
             return exports['cd_easytime']:getWeather()
         end)
@@ -93,7 +94,7 @@ local function buildWeatherPayload()
             weatherKey = tostring(result):upper()
         end
     else
-        -- FIX #4: GetPrevWeatherTypeHashName() returns a hash number.
+        -- GetPrevWeatherTypeHashName() returns a hash number.
         -- Use the reverse-lookup table to convert to a name string.
         local hash = GetPrevWeatherTypeHashName()
         if hash and weatherHashMap[hash] then
@@ -101,7 +102,6 @@ local function buildWeatherPayload()
         end
     end
 
-    -- Sanitize: ensure the key exists in our config tables
     if not Config.weatherIcons[weatherKey] then
         weatherKey = 'CLEAR'
     end
@@ -111,7 +111,6 @@ local function buildWeatherPayload()
     local icon       = Config.weatherIcons[weatherKey]
     local background = Config.weatherGif[weatherKey] or ''
 
-    -- cd_easytime temperature (optional – exposed as getTemperature on some builds)
     local temp = '22'
     if Config.easytime then
         local ok2, t = pcall(function()
@@ -134,6 +133,14 @@ end
 
 -- ----------------------------------------------------------
 --  Open / Close
+--  FIX (pass 3): openTablet and closeTablet contain while-loops
+--  that call Citizen.Wait(). In Lua 5.4 (lua54 'yes' in manifest)
+--  calling Citizen.Wait outside a coroutine/thread causes:
+--  "attempt to yield across a C-call boundary" — a hard crash.
+--
+--  Fix: every call site that invokes openTablet or closeTablet
+--  now spawns a Citizen.CreateThread so the Wait calls are
+--  always inside a proper coroutine context.
 -- ----------------------------------------------------------
 
 local function openTablet()
@@ -142,14 +149,15 @@ local function openTablet()
 
     local ped = PlayerPedId()
 
-    -- Animation
+    -- Animation — Citizen.Wait is safe here because openTablet
+    -- is always called from inside a Citizen.CreateThread (see below).
     RequestAnimDict(Config.AnimDict)
     while not HasAnimDictLoaded(Config.AnimDict) do
         Citizen.Wait(0)
     end
     TaskPlayAnim(ped, Config.AnimDict, 'base', 3.0, -3.0, -1, 49, 0, false, false, false)
 
-    -- Prop
+    -- Prop — createProp also contains a Citizen.Wait loop
     createProp(ped)
 
     -- NUI
@@ -163,13 +171,9 @@ local function closeTablet()
 
     local ped = PlayerPedId()
 
-    -- Stop animation
     StopAnimTask(ped, Config.AnimDict, 'base', 3.0)
-
-    -- Remove prop
     deleteProp()
 
-    -- NUI
     SetNuiFocus(false, false)
     SendNUIMessage({ action = 'close' })
 end
@@ -178,8 +182,8 @@ end
 --  NUI Callbacks
 -- ----------------------------------------------------------
 
--- Called when the player presses Escape inside the NUI
 RegisterNUICallback('close', function(_, cb)
+    -- closeTablet has no Wait loops so no thread needed here
     closeTablet()
     cb('ok')
 end)
@@ -190,11 +194,14 @@ end)
 
 if Config.Command then
     RegisterCommand(Config.Command, function()
-        if isTabletOpen then
-            closeTablet()
-        else
-            openTablet()
-        end
+        -- Spawn a thread so Citizen.Wait inside open/closeTablet is valid
+        Citizen.CreateThread(function()
+            if isTabletOpen then
+                closeTablet()
+            else
+                openTablet()
+            end
+        end)
     end, false)
 
     TriggerEvent('chat:addSuggestion', '/' .. Config.Command, Config.CommandDescription)
@@ -207,11 +214,14 @@ end
 if Config.Item then
     RegisterNetEvent('xelbob-tab:client:useItem')
     AddEventHandler('xelbob-tab:client:useItem', function()
-        if isTabletOpen then
-            closeTablet()
-        else
-            openTablet()
-        end
+        -- Spawn a thread so Citizen.Wait inside open/closeTablet is valid
+        Citizen.CreateThread(function()
+            if isTabletOpen then
+                closeTablet()
+            else
+                openTablet()
+            end
+        end)
     end)
 end
 
