@@ -21,36 +21,24 @@ try {
             iframe.src = infos.url;
             iframe.classList.add('opencad');
             content.appendChild(iframe);
-        } else if (infos.href === 'calculatorapp') {
-            const calculatorContent = document.createElement('div');
-            calculatorContent.innerHTML = `
-                <h1>Calculatrice</h1>
-                <div class='calculator'>
-                    <input type='text' id='display' v-model="calculatorInput" disabled>
-                    <div class='buttons'>
-                        <button class="function" @click='clearDisplay()'>C</button>
-                        <button class="function" @click='clearEntry()'>CE</button>
-                        <button class="function on-off" @click='togglePower()'>ON/OFF</button>
-                        <button class="operator" @click='appendToDisplay("/")'>÷</button>
-                        <button @click='appendToDisplay("7")'>7</button>
-                        <button @click='appendToDisplay("8")'>8</button>
-                        <button @click='appendToDisplay("9")'>9</button>
-                        <button class="operator" @click='appendToDisplay("*")'>×</button>
-                        <button @click='appendToDisplay("4")'>4</button>
-                        <button @click='appendToDisplay("5")'>5</button>
-                        <button @click='appendToDisplay("6")'>6</button>
-                        <button class="operator" @click='appendToDisplay("-")'>-</button>
-                        <button @click='appendToDisplay("1")'>1</button>
-                        <button @click='appendToDisplay("2")'>2</button>
-                        <button @click='appendToDisplay("3")'>3</button>
-                        <button class="operator" @click='appendToDisplay("+")'>+</button>
-                        <button class="zero" @click='appendToDisplay("0")'>0</button>
-                        <button class="equals" @click='calculate()'>=</button>
-                        <button @click='appendToDisplay(".")'>.</button>
-                    </div>
-                </div>
-            `;
 
+        } else if (infos.href === 'calculatorapp') {
+            // -------------------------------------------------------
+            // FIX (pass 3): Calculator was built with Vue directive
+            // syntax (@click, v-model) inside innerHTML strings.
+            // Because this DOM is inserted BEFORE Vue is instantiated
+            // Vue 2 never compiles those directives — all buttons are
+            // dead and v-model on the display never updates.
+            //
+            // Fix: build the calculator entirely with native DOM APIs
+            // and addEventListener so it works without Vue compilation.
+            // -------------------------------------------------------
+
+            // State
+            let calcInput = '';
+            let calcOn    = false;
+
+            // Style
             const style = document.createElement('style');
             style.innerHTML = `
                 .calculator {
@@ -59,12 +47,13 @@ try {
                     border-radius: 10px;
                     overflow: hidden;
                     width: 320px;
-                    margin: 0 auto;
-                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                    margin: 40px auto 0;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
                 }
-
-                #display {
+                #calc-display {
+                    display: block;
                     width: 100%;
+                    box-sizing: border-box;
                     margin-bottom: 10px;
                     padding: 10px;
                     font-size: 24px;
@@ -75,15 +64,13 @@ try {
                     text-align: right;
                     outline: none;
                 }
-
-                .buttons {
+                .calc-buttons {
                     display: grid;
                     grid-template-columns: repeat(4, 1fr);
                     gap: 10px;
                     padding: 10px;
                 }
-
-                .buttons button {
+                .calc-buttons button {
                     width: 100%;
                     height: 60px;
                     font-size: 18px;
@@ -95,34 +82,64 @@ try {
                     color: #fff;
                     background-color: #e74c3c;
                 }
-
-                .buttons button:hover {
-                    filter: brightness(1.2);
-                }
-
-                .buttons button:active {
-                    filter: brightness(0.8);
-                }
-
-                .function, .zero {
-                    background-color: #e74c3c;
-                }
-
-                .function.on-off {
-                    background-color: #e74c3c;
-                }
-
-                .operator, .equals, .sqrt {
-                    background-color: #e74c3c;
-                }
-
-                .zero {
-                    grid-column: span 2;
-                }
+                .calc-buttons button:hover  { filter: brightness(1.2); }
+                .calc-buttons button:active { filter: brightness(0.8); }
+                .calc-btn-zero { grid-column: span 2; }
             `;
-
-            content.appendChild(calculatorContent);
             document.head.appendChild(style);
+
+            // Container
+            const wrap = document.createElement('div');
+            wrap.classList.add('calculator');
+
+            // Display
+            const display = document.createElement('input');
+            display.type = 'text';
+            display.id   = 'calc-display';
+            display.disabled = true;
+            wrap.appendChild(display);
+
+            // Button grid
+            const grid = document.createElement('div');
+            grid.classList.add('calc-buttons');
+
+            function updateDisplay() {
+                display.value = calcOn ? (calcInput || '0') : '';
+            }
+
+            function makeBtn(label, extraClass, handler) {
+                const btn = document.createElement('button');
+                btn.textContent = label;
+                if (extraClass) btn.classList.add(extraClass);
+                btn.addEventListener('click', handler);
+                grid.appendChild(btn);
+            }
+
+            makeBtn('C',      null,            () => { if (calcOn) { calcInput = ''; updateDisplay(); } });
+            makeBtn('CE',     null,            () => { if (calcOn) { calcInput = calcInput.slice(0, -1); updateDisplay(); } });
+            makeBtn('ON/OFF', null,            () => { calcOn = !calcOn; calcInput = ''; updateDisplay(); });
+            makeBtn('÷',      null,            () => { if (calcOn) { calcInput += '/'; updateDisplay(); } });
+            ['7','8','9'].forEach(n => makeBtn(n, null, () => { if (calcOn) { calcInput += n; updateDisplay(); } }));
+            makeBtn('×', null, () => { if (calcOn) { calcInput += '*'; updateDisplay(); } });
+            ['4','5','6'].forEach(n => makeBtn(n, null, () => { if (calcOn) { calcInput += n; updateDisplay(); } }));
+            makeBtn('-', null, () => { if (calcOn) { calcInput += '-'; updateDisplay(); } });
+            ['1','2','3'].forEach(n => makeBtn(n, null, () => { if (calcOn) { calcInput += n; updateDisplay(); } }));
+            makeBtn('+', null, () => { if (calcOn) { calcInput += '+'; updateDisplay(); } });
+            makeBtn('0', 'calc-btn-zero', () => { if (calcOn) { calcInput += '0'; updateDisplay(); } });
+            makeBtn('=', null, () => {
+                if (!calcOn) return;
+                try {
+                    calcInput = eval(calcInput).toString();
+                } catch (e) {
+                    calcInput = 'Erreur';
+                }
+                updateDisplay();
+            });
+            makeBtn('.', null, () => { if (calcOn) { calcInput += '.'; updateDisplay(); } });
+
+            wrap.appendChild(grid);
+            content.appendChild(wrap);
+
         } else if (infos.href === 'noteapp') {
             const noteContent = document.createElement('div');
             noteContent.innerHTML = `
@@ -144,11 +161,9 @@ try {
                     border: 1px solid #ccc;
                     resize: none;
                 }
-
                 .note-buttons {
                     margin-top: 10px;
                 }
-
                 .note-buttons button {
                     margin-right: 10px;
                     padding: 10px 20px;
@@ -159,7 +174,6 @@ try {
                     cursor: pointer;
                     transition: background-color 0.3s;
                 }
-
                 .note-buttons button:hover {
                     background-color: #121619;
                 }
@@ -184,6 +198,7 @@ try {
             if (savedNote) {
                 noteContent.querySelector('#note-textarea').value = savedNote;
             }
+
         } else {
             const iframe = document.createElement('iframe');
             iframe.src = 'https://xelyos.fr';
@@ -205,13 +220,9 @@ try {
                 date: date.getDate()
             },
             Applications: config.sites,
-            calculatorInput: '',
-            calculatorPower: false,
             Weather: {
                 icon: 'weather-icon fas fa-sun',
                 condition: '',
-                // FIX #3: key was 'temperature' but referenced everywhere as 'temp'.
-                // Unified to 'temp' to match the message handler and HTML template.
                 temp: '22',
                 background: '',
                 truefalse: 'weather-widgetb'
@@ -227,51 +238,20 @@ try {
             async post(url, data = {}) {
                 const response = await fetch(`https://${GetParentResourceName()}/${url}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-
                 return await response.json();
             },
             setPageOpacity(id, value) {
                 let page = document.getElementById(id);
-                if (page?.style) {
-                    page.style.opacity = value;
-                }
+                if (page?.style) page.style.opacity = value;
             },
             switchPage(page) {
                 if (this.currentPage === page) return;
-
                 this.setPageOpacity(this.currentPage, 0);
                 this.currentPage = page;
-
-                setTimeout(() => {
-                    this.setPageOpacity(page, 1);
-                }, 50);
-            },
-            appendToDisplay(value) {
-                if (this.calculatorPower) {
-                    this.calculatorInput += value;
-                }
-            },
-            calculate() {
-                try {
-                    this.calculatorInput = eval(this.calculatorInput).toString();
-                } catch (error) {
-                    this.calculatorInput = 'Erreur';
-                }
-            },
-            clearEntry() {
-                this.calculatorInput = this.calculatorInput.slice(0, -1);
-            },
-            clearDisplay() {
-                this.calculatorInput = '';
-            },
-            togglePower() {
-                this.calculatorPower = !this.calculatorPower;
-                this.calculatorInput = this.calculatorPower ? '0' : '';
+                setTimeout(() => { this.setPageOpacity(page, 1); }, 50);
             },
             openNotes() {
                 this.switchPage('noteapp');
@@ -279,15 +259,10 @@ try {
         }
     });
 
-    let getjob = null;
-
     window.addEventListener('message', async ({ data }) => {
         switch (data.action) {
             case 'open':
                 app.opened = true;
-                // FIX #2: All weather fields sent by client.lua are now consumed.
-                // Previously 'background' and 'truefalse' were never applied,
-                // making the weather widget invisible and without its GIF background.
                 app.Weather.condition  = data.weather;
                 app.Weather.icon       = data.icon;
                 app.Weather.temp       = data.temp;
@@ -301,13 +276,11 @@ try {
     });
 
     window.addEventListener('keydown', async ({ key }) => {
-        let which = key.toLowerCase();
-
-        if (which === 'escape') {
-            getjob = null;
+        if (key.toLowerCase() === 'escape') {
             return await app.post('close');
         }
     });
+
 } catch (error) {
     // console.error("Erreur dans le script principal :", error);
 }
